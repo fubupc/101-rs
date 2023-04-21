@@ -19,25 +19,37 @@
 //  - add a method "peek" so that "queue.peek()" returns the same thing as "queue.read()", but leaves the element in the queue
 
 struct RingBuffer {
-    data: [u8; 16],
+    data: Box<[u8]>,
     start: usize,
     end: usize,
 }
 
 impl RingBuffer {
-    fn new() -> RingBuffer {
+    fn new(size: usize) -> RingBuffer {
         RingBuffer {
-            data: [0; 16],
+            data: make_box(size + 1), // allocate an extra slot to distinguish empty and full
             start: 0,
             end: 0,
         }
+    }
+
+    fn has_room(&self) -> bool {
+        (self.end + 1) % self.data.len() != self.start
+    }
+
+    fn peek(&self) -> Option<u8> {
+        (self.end != self.start).then_some(self.data[self.start])
     }
 
     /// This function tries to read a value from the queue and returns Some(value) if this succeeds,
     /// it returns None if the queue was empty
 
     fn read(&mut self) -> Option<u8> {
-        todo!()
+        (self.end != self.start).then(|| {
+            let x = self.data[self.start];
+            self.start = (self.start + 1) % self.data.len();
+            x
+        })
     }
 
     /// This function tries to put `value` on the queue; and returns true if this succeeds
@@ -75,10 +87,16 @@ impl Iterator for RingBuffer {
 }
 
 fn main() {
-    let mut queue = RingBuffer::new();
+    let mut queue = RingBuffer::new(3);
     assert!(queue.write(1));
     assert!(queue.write(2));
     assert!(queue.write(3));
+
+    assert_eq!(queue.has_room(), false);
+    assert_eq!(queue.peek(), Some(1));
+
+    assert_eq!(queue.read(), Some(1));
+    assert_eq!(queue.read(), Some(2));
     assert!(queue.write(4));
     assert!(queue.write(5));
     for elem in queue {
