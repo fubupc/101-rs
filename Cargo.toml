@@ -31,6 +31,9 @@ members = [
     # Examples used in slides
     "slides/examples/B-application-programming",
     "slides/examples/E-async-web",
+
+    # [B.2 Your first Rust Project](https://101-rs.tweede.golf/B-application-programming/mod.html#b2-your-first-rust-project)
+    "exercises/B/2-quizzer"
 ]
 
 exclude = [
