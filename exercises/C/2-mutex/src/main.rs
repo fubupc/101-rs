@@ -63,14 +63,18 @@ impl<T> Mutex<T> {
 
     pub fn lock(&self) -> MutexGuard<T> {
         // TODO: implement lock()
-        todo!()
+        self.block_until_you_lock();
+        MutexGuard { mutex: self }
     }
 
     pub fn into_inner(self) -> T {
         // TODO: implement into_inner()
         // hint: look at the available functions on UnsafeCell
         // question: do you need to `block_until_you_lock`?
-        todo!()
+
+        // ANSWER: No need to `block_until_you_lock`. Because this method needs ownership and only
+        // one party can have ownership.
+        self.cell.into_inner()
     }
 }
 
@@ -111,6 +115,11 @@ impl<T> DerefMut for MutexGuard<'_, T> {
 // imaginary bonus points: use the atomic_wait crate https://docs.rs/atomic-wait/latest/atomic_wait/index.html
 // to replace the spin loop with something more efficient. This section https://marabos.nl/atomics/building-locks.html#mutex of
 // "Rust Atomics and Locks" explains how to do it (and has lots of other good stuff too)
+impl<T> Drop for MutexGuard<'_, T> {
+    fn drop(&mut self) {
+        self.mutex.unlock()
+    }
+}
 
 fn main() {
     let n = Mutex::new(String::from("threads: "));
