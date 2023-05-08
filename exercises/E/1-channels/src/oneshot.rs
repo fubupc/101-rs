@@ -37,7 +37,23 @@ impl<T> Future for Receiver<T> {
         cx: &mut std::task::Context<'_>,
     ) -> std::task::Poll<Self::Output> {
         let mut inner = self.inner.lock().unwrap();
-        todo!("Implement me")
+        match inner.data.take() {
+            Some(v) => Poll::Ready(Ok(v)),
+            None => {
+                if inner.tx_dropped {
+                    Poll::Ready(Err(RecvError::SenderDropped))
+                } else {
+                    inner.waker = Some(cx.waker().clone());
+                    Poll::Pending
+                }
+            }
+        }
+    }
+}
+
+impl<T> Drop for Receiver<T> {
+    fn drop(&mut self) {
+        self.inner.lock().unwrap().rx_dropped = true;
     }
 }
 
@@ -47,7 +63,31 @@ pub struct Sender<T> {
 
 impl<T> Sender<T> {
     pub fn send(self, value: T) -> Result<(), SendError<T>> {
-        todo!("Implement me")
+        let mut inner = self.inner.lock().unwrap();
+        if inner.rx_dropped {
+            return Err(SendError::ReceiverDropped(value));
+        }
+        inner.data = Some(value);
+        if let Some(waker) = inner.waker.take() {
+            waker.wake()
+        }
+        Ok(())
+
+        // QUESTION:
+        // E.1.B says:
+        // > Upon succesfully sending the message, the consumed Sender is not marked
+        // > as dropped. Instead std::mem::forget is used to avoid running the destructor.
+        // Why???
+    }
+}
+
+impl<T> Drop for Sender<T> {
+    fn drop(&mut self) {
+        let mut inner = self.inner.lock().unwrap();
+        inner.tx_dropped = true;
+        if let Some(waker) = inner.waker.take() {
+            waker.wake()
+        }
     }
 }
 
@@ -104,6 +144,18 @@ mod tests {
 
         let (tx, rx) = channel::<()>();
         drop(tx);
-        assert!(matches!(rx.await, Err(RecvError::SenderDropped)))
+        assert!(matches!(rx.await, Err(RecvError::SenderDropped)));
+
+        let (tx, rx) = channel::<()>();
+        let recv_task = task::spawn(async {
+            println!("before rx.await");
+            assert!(matches!(rx.await, Err(RecvError::SenderDropped)));
+            println!("after rx.await");
+        });
+        task::yield_now().await;
+        println!("before drop tx");
+        drop(tx);
+        println!("after drop tx");
+        recv_task.await.unwrap();
     }
 }

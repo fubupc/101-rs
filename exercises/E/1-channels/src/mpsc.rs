@@ -31,17 +31,31 @@ impl<T> Stream for Receiver<T> {
 
     fn poll_next(self: std::pin::Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let mut inner = self.inner.lock().unwrap();
-        todo!("Replace innerwaker with the waker from the context");
-        todo!("Return `Poll::Ready(Some(item))` if there are items in inner.buffer");
-        todo!("Return `Poll::Pending` if `inner.buffer` is empty");
-        todo!("Return `Poll::Ready(None)` if all `Sender`s have been dropped");
+
+        // todo!("Replace innerwaker with the waker from the context");
+        inner.waker = Some(cx.waker().clone());
+
+        // todo!("Return `Poll::Ready(Some(item))` if there are items in inner.buffer");
+        // todo!("Return `Poll::Pending` if `inner.buffer` is empty");
+        // todo!("Return `Poll::Ready(None)` if all `Sender`s have been dropped");
+        match inner.buffer.pop_front() {
+            Some(item) => Poll::Ready(Some(item)),
+            None => {
+                if inner.txs_left == 0 {
+                    Poll::Ready(None)
+                } else {
+                    Poll::Pending
+                }
+            }
+        }
     }
 }
 
 impl<T> Drop for Receiver<T> {
     fn drop(&mut self) {
         let mut inner = self.inner.lock().unwrap();
-        todo!("Update inner, marking the `Receiver` as dropped")
+        // todo!("Update inner, marking the `Receiver` as dropped")
+        inner.rx_dropped = true;
     }
 }
 
@@ -52,9 +66,18 @@ pub struct Sender<T> {
 impl<T> Sender<T> {
     pub fn send(&self, value: T) -> Result<(), SendError<T>> {
         let mut inner = self.inner.lock().unwrap();
-        todo!("Return `Err(Error::ReceiverDropped(value))` if the `Receiver was dropped`");
-        todo!("Push `value` to `inner.buffer`");
-        todo!("Wake inner.waker by reference if it is set");
+        // todo!("Return `Err(Error::ReceiverDropped(value))` if the `Receiver was dropped`");
+        if inner.rx_dropped {
+            return Err(SendError::ReceiverDropped(value));
+        }
+
+        // todo!("Push `value` to `inner.buffer`");
+        inner.buffer.push_back(value);
+
+        // todo!("Wake inner.waker by reference if it is set");
+        if let Some(waker) = inner.waker.as_ref() {
+            waker.wake_by_ref()
+        }
 
         Ok(())
     }
@@ -63,16 +86,27 @@ impl<T> Sender<T> {
 impl<T> Clone for Sender<T> {
     fn clone(&self) -> Self {
         let inner = self.inner.clone();
-        todo!("increment the number of `Sender`s left");
-        todo!("Return a new Sender containing `inner`");
+        // todo!("increment the number of `Sender`s left");
+        inner.lock().unwrap().txs_left += 1;
+
+        // todo!("Return a new Sender containing `inner`");
+        Sender { inner }
     }
 }
 
 impl<T> Drop for Sender<T> {
     fn drop(&mut self) {
         let mut inner = self.inner.lock().unwrap();
-        todo!("decrement the number of `Sender`s left");
-        todo!("Wake inner.waker by reference if it is set");
+        // todo!("decrement the number of `Sender`s left");
+        inner.txs_left -= 1;
+        if inner.txs_left > 0 {
+            return;
+        }
+
+        // todo!("Wake inner.waker by reference if it is set");
+        if let Some(waker) = inner.waker.as_ref() {
+            waker.wake_by_ref()
+        }
     }
 }
 
