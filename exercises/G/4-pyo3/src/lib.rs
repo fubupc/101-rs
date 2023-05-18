@@ -13,13 +13,18 @@ fn main() {
     }
 
     // TODO add a `pointwise_sum` pyfunction
+    #[pyfunction]
+    fn pointwise_sum(mut a: Vec<f64>, b: Vec<f64>) -> Vec<f64> {
+        unsafe { pointwise_sum_simd(&mut a, &b) }
+        a
+    }
 
     /// A Python module implemented in Rust.
     #[pymodule]
     fn pointwise_simd(py: Python, m: &PyModule) -> PyResult<()> {
         m.add_function(wrap_pyfunction!(sum_as_string, m)?)?;
         // TODO re-enable when pointwise_sum is defined
-        // m.add_function(wrap_pyfunction!(pointwise_sum, m)?)?;
+        m.add_function(wrap_pyfunction!(pointwise_sum, m)?)?;
 
         Ok(())
     }
@@ -44,6 +49,10 @@ unsafe fn pointwise_sum_simd(a: &mut [f64], b: &[f64]) {
         // - _mm_load_pd: load a pointer into a simd value
         // - _mm_add_pd: add two simd values
         // - _mm_storeu_pd: write a simd value to a pointer
+        let a_128 = _mm_load_pd(&a[index]);
+        let b_128 = _mm_load_pd(&b[index]);
+        let sum_128 = _mm_add_pd(a_128, b_128);
+        _mm_storeu_pd(&mut a[index], sum_128);
 
         index += WIDTH;
     }

@@ -300,6 +300,9 @@ checksum = "6245d59a3e82a7fc217c5828a6692dbc6dfb63a0c8c90495621f7b9d79704a0e"
 [[package]]
 name = "crc-in-c"
 version = "0.1.0"
+dependencies = [
+ "cc",
+]
 
 [[package]]
 name = "crc-in-rust"
@@ -1705,6 +1708,9 @@ checksum = "3528ecfd12c466c6f163363caf2d02a71161dd5e1cc6ae7b34207ea2d42d81ed"
 [[package]]
 name = "tweetnacl-bindgen"
 version = "0.1.0"
+dependencies = [
+ "cc",
+]
 
 [[package]]
 name = "unicode-ident"
