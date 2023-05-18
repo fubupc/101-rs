@@ -30,34 +30,67 @@ union RocResultUnion<T, E> {
 impl<T, E> Drop for RocResult<T, E> {
     fn drop(&mut self) {
         // implement drop. Make sure values wrapped in a ManuallyDrop are dropped correctly!
-        todo!()
+        match self.tag {
+            RocResultTag::Ok => unsafe { ManuallyDrop::drop(&mut self.payload.ok) },
+            RocResultTag::Err => unsafe { ManuallyDrop::drop(&mut self.payload.err) },
+        }
     }
 }
 
-impl<T, E> Clone for RocResult<T, E> {
+impl<T: Clone, E: Clone> Clone for RocResult<T, E> {
     fn clone(&self) -> Self {
-        todo!()
+        match self.tag {
+            RocResultTag::Ok => RocResult {
+                tag: RocResultTag::Ok,
+                payload: RocResultUnion {
+                    ok: unsafe { self.payload.ok.clone() },
+                },
+            },
+            RocResultTag::Err => RocResult {
+                tag: RocResultTag::Err,
+                payload: RocResultUnion {
+                    err: unsafe { self.payload.err.clone() },
+                },
+            },
+        }
     }
 }
 
 impl<T, E> RocResult<T, E> {
     fn unwrap(mut self) -> T {
-        match self.tag {
+        let t = match self.tag {
             RocResultTag::Ok => unsafe { ManuallyDrop::take(&mut self.payload.ok) },
             RocResultTag::Err => panic!("Called `unwrap` on an Err"),
-        }
+        };
+        std::mem::forget(self);
+        t
     }
 
     fn unwrap_err(mut self) -> E {
-        todo!()
+        let e = match self.tag {
+            RocResultTag::Ok => panic!("Called `unwrap_err` on an Ok"),
+            RocResultTag::Err => unsafe { ManuallyDrop::take(&mut self.payload.err) },
+        };
+        std::mem::forget(self);
+        e
     }
 
     fn ok(v: T) -> Self {
-        todo!()
+        RocResult {
+            tag: RocResultTag::Ok,
+            payload: RocResultUnion {
+                ok: ManuallyDrop::new(v),
+            },
+        }
     }
 
     fn err(e: E) -> Self {
-        todo!()
+        RocResult {
+            tag: RocResultTag::Err,
+            payload: RocResultUnion {
+                err: ManuallyDrop::new(e),
+            },
+        }
     }
 
     fn is_ok(&self) -> bool {
@@ -65,26 +98,43 @@ impl<T, E> RocResult<T, E> {
     }
 
     fn is_err(&self) -> bool {
-        todo!()
+        matches!(self.tag, RocResultTag::Err)
     }
 
     fn map<F, U>(mut self, f: F) -> RocResult<U, E>
     where
         F: FnOnce(T) -> U,
     {
-        todo!()
+        let r = match self.tag {
+            RocResultTag::Ok => {
+                RocResult::ok(f(unsafe { ManuallyDrop::take(&mut self.payload.ok) }))
+            }
+            RocResultTag::Err => {
+                RocResult::err(unsafe { ManuallyDrop::take(&mut self.payload.err) })
+            }
+        };
+        std::mem::forget(self);
+        r
     }
 }
 
 impl<T, E> From<RocResult<T, E>> for Result<T, E> {
-    fn from(value: RocResult<T, E>) -> Self {
-        todo!()
+    fn from(mut value: RocResult<T, E>) -> Self {
+        let r = match value.tag {
+            RocResultTag::Ok => Ok(unsafe { ManuallyDrop::take(&mut value.payload.ok) }),
+            RocResultTag::Err => Err(unsafe { ManuallyDrop::take(&mut value.payload.err) }),
+        };
+        std::mem::forget(value);
+        r
     }
 }
 
 impl<T, E> From<Result<T, E>> for RocResult<T, E> {
     fn from(value: Result<T, E>) -> Self {
-        todo!()
+        match value {
+            Ok(v) => RocResult::ok(v),
+            Err(err) => RocResult::err(err),
+        }
     }
 }
 

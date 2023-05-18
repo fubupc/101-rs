@@ -54,6 +54,9 @@ impl LinkedList {
 impl Drop for LinkedList {
     fn drop(&mut self) {
         // TODO: implement drop
+        if !self.0.is_null() {
+            unsafe { Box::from_raw(self.0) };
+        }
     }
 }
 
@@ -70,7 +73,12 @@ impl<'a> Iterator for Iter<'a> {
         //
         // make sure that `Node` values are never dropped here! An implementation is possible
         // without any of the `std::ptr` functions, just dereferencing is sufficient.
-        None
+        if self.list.is_null() {
+            return None;
+        }
+        let item = unsafe { (*self.list).current };
+        self.list = unsafe { (*self.list).rest.0 };
+        Some(item)
     }
 }
 
@@ -86,6 +94,15 @@ impl LinkedList {
         // TODO: reverse the linked list in-place. The general approach is to start with a new empty
         // linked list, and move elements from self over to this new list. Finally update self with
         // the new list.
+        let mut rev = std::ptr::null_mut();
+        let mut curr = self.0;
+        while !curr.is_null() {
+            let next = unsafe { (*curr).rest.0 };
+            unsafe { (*curr).rest.0 = rev };
+            rev = curr;
+            curr = next;
+        }
+        self.0 = rev;
     }
 }
 
